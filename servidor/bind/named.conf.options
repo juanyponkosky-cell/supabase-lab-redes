@@ -1,0 +1,23 @@
+// Ubicación en el servidor: /etc/bind/named.conf.options
+// Escucha sólo en loopback y en la interfaz host-only (no choca con
+// systemd-resolved, que usa 127.0.0.53 y 127.0.0.54).
+
+options {
+    directory "/var/cache/bind";
+
+    listen-on { 127.0.0.1; 192.168.56.10; };
+    listen-on-v6 { none; };
+
+    // Consultas y recursión sólo desde la red del laboratorio
+    allow-query { 127.0.0.1; 192.168.56.0/24; };
+    recursion yes;
+    allow-recursion { 127.0.0.1; 192.168.56.0/24; };
+
+    // Nombres de Internet: se reenvían a resolvedores públicos por la NAT.
+    // Si la red bloquea DNS externo, usar el proxy DNS de VirtualBox
+    // (forwarders { 10.0.2.3; };) y poner dnssec-validation no;
+    forwarders { 1.1.1.1; 8.8.8.8; };
+
+    dnssec-validation auto;
+    version "no disponible";
+};

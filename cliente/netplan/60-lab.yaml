@@ -1,0 +1,13 @@
+# Cliente - /etc/netplan/60-lab.yaml
+# Aplicar con: sudo netplan apply   (verificar antes los nombres con: ip a)
+network:
+  version: 2
+  ethernets:
+    enp0s3:              # adaptador 1: NAT de VirtualBox (para instalar paquetes)
+      dhcp4: true
+    enp0s8:              # adaptador 2: red host-only del laboratorio
+      dhcp4: false
+      addresses: [192.168.56.20/24]
+      nameservers:
+        addresses: [192.168.56.10]
+        search: [lab.internal]

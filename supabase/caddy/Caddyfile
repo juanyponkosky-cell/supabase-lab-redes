@@ -1,0 +1,38 @@
+# Caddyfile del laboratorio (reemplaza a volumes/proxy/caddy/Caddyfile del proyecto).
+# Diferencia con el oficial: en lugar de pedir un certificado a Let's Encrypt,
+# usa el certificado emitido por la CA propia del laboratorio (TP6).
+# Los archivos se copian a volumes/proxy/caddy/certs/, que el contenedor ve como /etc/caddy/certs/.
+
+{
+	# Sin ACME: no hay dominio público ni salida a Let's Encrypt.
+	# Se mantiene la redirección automática de HTTP (80) a HTTPS (443).
+	auto_https disable_certs
+}
+
+{$PROXY_DOMAIN} {
+	tls /etc/caddy/certs/fullchain.pem /etc/caddy/certs/servidor.key {
+		protocols tls1.2 tls1.3
+	}
+
+	# Rutas de las APIs: van al gateway Envoy (api-gw:8000) por la red interna de Docker
+	@supabase_api path /auth/v1/* /rest/v1/* /graphql/v1 /realtime/v1/* /storage/v1/* /functions/v1/* /mcp /sso/* /.well-known/oauth-authorization-server/auth/v1
+
+	handle @supabase_api {
+		reverse_proxy api-gw:8000
+	}
+
+	# Todo lo demás es el panel Studio, protegido con Basic auth
+	handle {
+		basic_auth {
+			# PROXY_AUTH_PASSWORD se reemplaza por su hash bcrypt al iniciar el contenedor
+			{$PROXY_AUTH_USERNAME} {$PROXY_AUTH_PASSWORD}
+		}
+
+		reverse_proxy studio:3000
+	}
+
+	header {
+		-server
+		Strict-Transport-Security "max-age=31536000"
+	}
+}

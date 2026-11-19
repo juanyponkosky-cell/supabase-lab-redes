@@ -1,0 +1,14 @@
+# Secretos y material criptográfico
+.env
+*.env
+!env.lab.example
+*.key
+*.csr
+*.srl
+servidor/pki/salida/
+
+# Respaldos y capturas (pueden contener claves de API y JWT en claro)
+backups/
+*.pcap
+*.pcapng
+tls-keys.log

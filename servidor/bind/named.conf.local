@@ -1,0 +1,14 @@
+// Ubicación en el servidor: /etc/bind/named.conf.local
+// BIND9 es primario (autoritativo) de la zona del laboratorio y de su inversa.
+
+zone "lab.internal" {
+    type primary;
+    file "/etc/bind/db.lab.internal";
+    allow-transfer { none; };
+};
+
+zone "56.168.192.in-addr.arpa" {
+    type primary;
+    file "/etc/bind/db.192.168.56";
+    allow-transfer { none; };
+};
