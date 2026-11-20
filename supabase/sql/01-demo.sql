@@ -13,6 +13,10 @@ create table if not exists public.mensajes (
 -- 2. Permisos de tabla (GRANT): qué operaciones puede intentar cada rol
 grant select on public.mensajes to anon, authenticated;
 grant insert, delete on public.mensajes to authenticated;
+-- Supabase otorga por defecto todos los privilegios a anon y authenticated
+-- sobre las tablas nuevas de public: se quitan los que no corresponden
+revoke insert, update, delete, truncate on public.mensajes from anon;
+revoke update, truncate on public.mensajes from authenticated;
 
 -- 3. Row Level Security: qué filas alcanza cada operación
 alter table public.mensajes enable row level security;
