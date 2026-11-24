@@ -9,6 +9,7 @@
 #
 # Escenas:
 #   sh scripts/demo.sh registro      # 1. Una familia se registra
+#   sh scripts/demo.sh login         # variante: pide correo y contraseña de un usuario creado en Studio
 #   sh scripts/demo.sh publicar      # 2. Quién puede publicar
 #   sh scripts/demo.sh familia       # 3. El aviso llega solo (dejar abierta)
 #   DEBUG=1 sh scripts/demo.sh familia   # igual, mostrando cada mensaje crudo de Realtime
@@ -49,6 +50,39 @@ registro)
     fi
     ;;
 
+login)
+    titulo "Inicio de sesión de un usuario creado en Studio"
+    EMAIL="${2:-}"
+    CLAVE="${3:-}"
+    if [ -z "$EMAIL" ]; then
+        printf 'Correo: '
+        IFS= read -r EMAIL
+    fi
+    if [ -z "$CLAVE" ]; then
+        printf 'Contraseña: '
+        stty -echo 2>/dev/null || true
+        IFS= read -r CLAVE
+        stty echo 2>/dev/null || true
+        echo
+    fi
+    printf '%s' "$EMAIL" > "$ESTADO/email"
+
+    curl -sS "$SB_URL/auth/v1/token?grant_type=password" -H "apikey: $SB_PUB" -H "$JSON" \
+        -d "{\"email\":\"$EMAIL\",\"password\":\"$CLAVE\"}" > "$ESTADO/login.json"
+    sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p' "$ESTADO/login.json" > "$ESTADO/token"
+    VENCE=$(sed -n 's/.*"expires_in":\([0-9]*\).*/\1/p' "$ESTADO/login.json")
+    ID=$(sed -n 's/.*"user":{"id":"\([^"]*\)".*/\1/p' "$ESTADO/login.json")
+
+    if [ -s "$ESTADO/token" ]; then
+        echo "Inició sesión: $EMAIL"
+        [ -n "$ID" ] && echo "Su id de usuario: $ID"
+        echo "Recibió su pase (JWT), que vence en $VENCE segundos (una hora)."
+    else
+        echo "No se pudo iniciar sesión. ¿El correo y la contraseña son los de Studio?"
+        echo "¿Marcaste \"Auto Confirm User\" al crearlo?"
+    fi
+    ;;
+
 publicar)
     titulo "Escena 2: quién puede publicar"
     [ -s "$ESTADO/token" ] || { echo "Primero correr: sh scripts/demo.sh registro"; exit 1; }
@@ -61,7 +95,8 @@ publicar)
     echo "  Respuesta: $COD  ->  rechazado"
 
     echo
-    echo "La mamá, CON su sesión, publica: \"$AVISO\""
+    QUIEN=$(cat "$ESTADO/email" 2>/dev/null || echo "la usuaria")
+    echo "$QUIEN, CON su sesión, publica: \"$AVISO\""
     COD=$(curl -sS -o /dev/null -w '%{http_code}' "$SB_URL/rest/v1/mensajes" \
         -H "apikey: $SB_PUB" -H "Authorization: Bearer $TOKEN" -H "$JSON" \
         -d "{\"texto\":\"$AVISO\"}")
@@ -106,6 +141,6 @@ base)
     ;;
 
 *)
-    echo "Uso: sh scripts/demo.sh registro | publicar [\"texto\"] | familia | base"
+    echo "Uso: sh scripts/demo.sh registro | login | publicar [\"texto\"] | familia | base"
     exit 1 ;;
 esac
