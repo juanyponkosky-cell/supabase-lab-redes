@@ -11,6 +11,7 @@
 #   sh scripts/demo.sh registro      # 1. Una familia se registra
 #   sh scripts/demo.sh publicar      # 2. Quién puede publicar
 #   sh scripts/demo.sh familia       # 3. El aviso llega solo (dejar abierta)
+#   DEBUG=1 sh scripts/demo.sh familia   # igual, mostrando cada mensaje crudo de Realtime
 #   sh scripts/demo.sh base          # 4. La base tiene portero (antes y después)
 #
 set -eu
@@ -79,10 +80,11 @@ familia)
     { printf '%s\n' "$JOIN"; while :; do sleep 25; printf '%s\n' "$LATIDO"; done; } \
     | "${WEBSOCAT:-websocat}" ${WS_OPCIONES:-} "$WS" \
     | while IFS= read -r linea; do
+        if [ -n "${DEBUG:-}" ]; then printf 'RAW: %s\n' "$linea"; fi
         case "$linea" in
             *"Subscribed to PostgreSQL"*) echo "Conectado: esperando avisos..." ;;
             *'"postgres_changes"'*)
-                texto=$(printf '%s' "$linea" | sed -n 's/.*"texto":"\([^"]*\)".*/\1/p')
+                texto=$(printf '%s' "$linea" | sed -n 's/.*"texto": *"\([^"]*\)".*/\1/p')
                 if [ -n "$texto" ]; then printf '\n  \033[1mNuevo aviso:\033[0m %s\n' "$texto"; fi ;;
             *'"status":"error"'*) echo "Error de Realtime: $linea" ;;
         esac
