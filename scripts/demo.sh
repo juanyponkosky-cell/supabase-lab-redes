@@ -10,7 +10,8 @@
 # Escenas:
 #   sh scripts/demo.sh registro      # 1. Una familia se registra
 #   sh scripts/demo.sh login         # variante: pide correo y contraseña de un usuario creado en Studio
-#   sh scripts/demo.sh publicar      # 2. Quién puede publicar
+#   sh scripts/demo.sh publicar      # 2. Quién puede publicar (después de login: pide el mensaje y publica)
+#   sh scripts/demo.sh anonimo       #    sólo el intento sin cuenta (401)
 #   sh scripts/demo.sh familia       # 3. El aviso llega solo (dejar abierta)
 #   DEBUG=1 sh scripts/demo.sh familia   # igual, mostrando cada mensaje crudo de Realtime
 #   sh scripts/demo.sh base          # 4. La base tiene portero (antes y después)
@@ -32,6 +33,7 @@ registro)
     titulo "Escena 1: una familia se registra"
     EMAIL="mama.$(date +%H%M%S)@lab.internal"
     printf '%s' "$EMAIL" > "$ESTADO/email"
+    rm -f "$ESTADO/via_login"
 
     curl -sS -o /dev/null "$SB_URL/auth/v1/signup" -H "apikey: $SB_PUB" -H "$JSON" \
         -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}"
@@ -66,6 +68,7 @@ login)
         echo
     fi
     printf '%s' "$EMAIL" > "$ESTADO/email"
+    : > "$ESTADO/via_login"
 
     curl -sS "$SB_URL/auth/v1/token?grant_type=password" -H "apikey: $SB_PUB" -H "$JSON" \
         -d "{\"email\":\"$EMAIL\",\"password\":\"$CLAVE\"}" > "$ESTADO/login.json"
@@ -84,23 +87,48 @@ login)
     ;;
 
 publicar)
-    titulo "Escena 2: quién puede publicar"
-    [ -s "$ESTADO/token" ] || { echo "Primero correr: sh scripts/demo.sh registro"; exit 1; }
+    [ -s "$ESTADO/token" ] || { echo "Primero correr: sh scripts/demo.sh login (o registro)"; exit 1; }
     TOKEN=$(cat "$ESTADO/token")
-    AVISO="${2:-Mañana se suspenden las clases}"
-
-    echo "Alguien SIN cuenta intenta publicar..."
-    COD=$(curl -sS -o /dev/null -w '%{http_code}' "$SB_URL/rest/v1/mensajes" \
-        -H "apikey: $SB_PUB" -H "$JSON" -d "{\"texto\":\"Aviso falso\"}")
-    echo "  Respuesta: $COD  ->  rechazado"
-
-    echo
     QUIEN=$(cat "$ESTADO/email" 2>/dev/null || echo "la usuaria")
+    AVISO="${2:-}"
+
+    if [ -f "$ESTADO/via_login" ]; then
+        # Entró con "login": publica directo, sin el intento rechazado
+        titulo "Publicar un aviso como $QUIEN"
+        if [ -z "$AVISO" ]; then
+            printf 'Mensaje a publicar: '
+            IFS= read -r AVISO
+        fi
+    else
+        # Entró con "registro": muestra primero el intento sin cuenta
+        titulo "Escena 2: quién puede publicar"
+        [ -n "$AVISO" ] || AVISO="Mañana se suspenden las clases"
+        echo "Alguien SIN cuenta intenta publicar..."
+        COD=$(curl -sS -o /dev/null -w '%{http_code}' "$SB_URL/rest/v1/mensajes" \
+            -H "apikey: $SB_PUB" -H "$JSON" -d "{\"texto\":\"Aviso falso\"}")
+        echo "  Respuesta: $COD  ->  rechazado"
+        echo
+    fi
+    [ -n "$AVISO" ] || { echo "No escribiste ningún mensaje."; exit 1; }
+
     echo "$QUIEN, CON su sesión, publica: \"$AVISO\""
     COD=$(curl -sS -o /dev/null -w '%{http_code}' "$SB_URL/rest/v1/mensajes" \
         -H "apikey: $SB_PUB" -H "Authorization: Bearer $TOKEN" -H "$JSON" \
         -d "{\"texto\":\"$AVISO\"}")
-    echo "  Respuesta: $COD  ->  publicado"
+    if [ "$COD" = "201" ]; then
+        echo "  Respuesta: $COD  ->  publicado"
+    else
+        echo "  Respuesta: $COD  ->  no se publicó (¿venció el pase? volvé a correr login)"
+    fi
+    ;;
+
+anonimo)
+    titulo "Alguien sin cuenta intenta publicar"
+    AVISO="${2:-Aviso falso}"
+    echo "Intento de publicar \"$AVISO\" sólo con la clave pública de la app..."
+    COD=$(curl -sS -o /dev/null -w '%{http_code}' "$SB_URL/rest/v1/mensajes" \
+        -H "apikey: $SB_PUB" -H "$JSON" -d "{\"texto\":\"$AVISO\"}")
+    echo "  Respuesta: $COD  ->  rechazado"
     ;;
 
 familia)
@@ -141,6 +169,6 @@ base)
     ;;
 
 *)
-    echo "Uso: sh scripts/demo.sh registro | login | publicar [\"texto\"] | familia | base"
+    echo "Uso: sh scripts/demo.sh registro | login | publicar [\"texto\"] | anonimo | familia | base"
     exit 1 ;;
 esac
