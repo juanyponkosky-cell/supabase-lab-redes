@@ -12,3 +12,6 @@ backups/
 *.pcap
 *.pcapng
 tls-keys.log
+
+# Variables de la demo (claves reales)
+demo.env
